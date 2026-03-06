@@ -507,7 +507,11 @@ def workspace_list_topics(project_slug: str, status: str | None, root: str):
         return
 
     for topic in topics:
-        click.echo(f"{topic['slug']}: {topic['title']} [{topic['status']}, priority={topic['priority']}]")
+        slug = topic.get('slug', '<missing-slug>')
+        title = topic.get('title', '<missing-title>')
+        status_value = topic.get('status', '<missing-status>')
+        priority_value = topic.get('priority', '<missing-priority>')
+        click.echo(f"{slug}: {title} [{status_value}, priority={priority_value}]")
 
 
 @workspace.command('add-task')

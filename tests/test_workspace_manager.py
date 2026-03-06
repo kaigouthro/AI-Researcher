@@ -33,6 +33,20 @@ def test_cli_workspace_flow(tmp_path: Path):
     runner = CliRunner()
     root = tmp_path / "workspace_cli"
 
+    # Test workspace init
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "init",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (root / "projects").exists()
+    assert (root / "taxonomy.yaml").exists()
+
     result = runner.invoke(
         cli,
         [
@@ -66,6 +80,22 @@ def test_cli_workspace_flow(tmp_path: Path):
         ],
     )
     assert result.exit_code == 0, result.output
+
+    # Test workspace list-topics
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "list-topics",
+            "--project",
+            "research-platform",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "task-planning" in result.output
+    assert "Task Planning" in result.output
 
     result = runner.invoke(
         cli,

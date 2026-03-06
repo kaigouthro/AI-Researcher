@@ -215,10 +215,16 @@ class WorkspaceManager:
 
         results: list[dict[str, Any]] = []
         for topic_dir in sorted([p for p in project_topics.iterdir() if p.is_dir()]):
-            meta = self._read_yaml(topic_dir / "topic.yaml")
-            if status and meta.get("status") != status:
+            topic_meta_path = topic_dir / "topic.yaml"
+            if not topic_meta_path.exists():
+                raise FileNotFoundError(
+                    f"Missing topic metadata file for topic '{topic_dir.name}' in project '{project_slug}': {topic_meta_path}"
+                )
+            meta = self._read_yaml(topic_meta_path)
+            topic = TopicMetadata.model_validate(meta)
+            if status and topic.status != status:
                 continue
-            results.append(meta)
+            results.append(topic.model_dump())
         return results
 
     def add_backlog_task(
@@ -292,7 +298,12 @@ class WorkspaceManager:
     @staticmethod
     def _read_yaml(path: Path) -> dict[str, Any]:
         with path.open("r", encoding="utf-8") as handle:
-            return yaml.safe_load(handle) or {}
+            loaded = yaml.safe_load(handle)
+        if loaded is None:
+            return {}
+        if not isinstance(loaded, dict):
+            raise ValueError(f"YAML root must be a mapping in {path}")
+        return loaded
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, Any]) -> None:
