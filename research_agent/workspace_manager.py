@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 
 DEFAULT_WORKSPACE_ROOT = Path("research_workspace")
@@ -221,7 +221,13 @@ class WorkspaceManager:
                     f"Missing topic metadata file for topic '{topic_dir.name}' in project '{project_slug}': {topic_meta_path}"
                 )
             meta = self._read_yaml(topic_meta_path)
-            topic = TopicMetadata.model_validate(meta)
+            try:
+                topic = TopicMetadata.model_validate(meta)
+            except ValidationError as exc:
+                raise ValueError(
+                    f"Invalid topic metadata for topic '{topic_dir.name}' in project '{project_slug}'"
+                    f" ({topic_meta_path}): {exc}"
+                ) from exc
             if status and topic.status != status:
                 continue
             results.append(topic.model_dump())

@@ -499,7 +499,7 @@ def workspace_list_topics(project_slug: str, status: str | None, root: str):
     manager = WorkspaceManager(Path(root))
     try:
         topics = manager.list_topics(project_slug=project_slug, status=status)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     if not topics:
