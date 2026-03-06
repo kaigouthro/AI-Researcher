@@ -30,3 +30,5 @@ productization and UX.
 ## Current Sprint (In Progress)
 - Add a benchmark instance schema test.
 - Publish this roadmap in-repo.
+
+- Draft a full rewrite plan for project/topic UX, metadata tagging, task pipelines, and vector organization (`RESEARCH_INTERFACE_REWRITE_PLAN.md`).

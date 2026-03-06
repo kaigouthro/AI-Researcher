@@ -101,6 +101,13 @@ ai-researcher run -c vq -i one_layer_vq -l task1
 ai-researcher preview -c vq -i one_layer_vq
 ai-researcher wizard
 
+# Topic-based workspace (new)
+ai-researcher workspace init
+ai-researcher workspace create-project --name "Graph Recommendation 2026" --owner alex
+ai-researcher workspace create-topic --project graph-recommendation-2026 --title "Cold-start ranking" --owner alex --category-tag recommendation
+ai-researcher workspace add-task --project graph-recommendation-2026 --topic cold-start-ranking --task-id literature_discovery --title "Collect latest baselines"
+ai-researcher workspace recommend-tasks --project graph-recommendation-2026 --topic cold-start-ranking
+
 # Run metadata and artifacts
 ai-researcher metadata --latest --show
 ai-researcher bundle --latest

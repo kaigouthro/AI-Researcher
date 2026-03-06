@@ -417,6 +417,152 @@ def bench_validate(category: str | None, as_json: bool):
                 click.echo(f"  - {err}")
 
 
+
+
+@cli.group()
+def workspace():
+    """Manage project/topic research workspaces."""
+    pass
+
+
+@workspace.command('init')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_init(root: str):
+    """Initialize a topic-oriented research workspace."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    manager.ensure_workspace()
+    click.echo(f"Initialized workspace at {manager.root}")
+
+
+@workspace.command('create-project')
+@click.option('--name', required=True, help='Project title')
+@click.option('--owner', required=True, help='Project owner')
+@click.option('--slug', default=None, help='Optional project slug')
+@click.option('--description', default='', help='Project description')
+@click.option('--tag', 'tags', multiple=True, help='Project tags (repeatable)')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_create_project(name: str, owner: str, slug: str | None, description: str, tags: tuple[str, ...], root: str):
+    """Create a project in the research workspace."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        project_dir = manager.create_project(name=name, owner=owner, slug=slug, description=description, tags=[*tags])
+    except FileExistsError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(str(project_dir))
+
+
+@workspace.command('create-topic')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--title', required=True, help='Topic title')
+@click.option('--owner', required=True, help='Topic owner')
+@click.option('--slug', default=None, help='Optional topic slug')
+@click.option('--summary', default='', help='Topic summary')
+@click.option('--category-tag', 'category_tags', multiple=True, help='Category tag (repeatable)')
+@click.option('--method-tag', 'method_tags', multiple=True, help='Method tag (repeatable)')
+@click.option('--task-tag', 'task_tags', multiple=True, help='Task tag (repeatable)')
+@click.option('--priority', default='medium', show_default=True, type=click.Choice(['low', 'medium', 'high', 'critical']))
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_create_topic(project_slug: str, title: str, owner: str, slug: str | None, summary: str, category_tags: tuple[str, ...], method_tags: tuple[str, ...], task_tags: tuple[str, ...], priority: str, root: str):
+    """Create a topic folder with metadata, tasks, and vector manifests."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        topic_dir = manager.create_topic(
+            project_slug=project_slug,
+            title=title,
+            owner=owner,
+            slug=slug,
+            summary=summary,
+            category_tags=[*category_tags],
+            method_tags=[*method_tags],
+            task_tags=[*task_tags],
+            priority=priority,
+        )
+    except (FileNotFoundError, FileExistsError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(str(topic_dir))
+
+
+@workspace.command('list-topics')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--status', default=None, help='Optional status filter')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_list_topics(project_slug: str, status: str | None, root: str):
+    """List topics for a project."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        topics = manager.list_topics(project_slug=project_slug, status=status)
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not topics:
+        click.echo('No topics found.')
+        return
+
+    for topic in topics:
+        click.echo(f"{topic['slug']}: {topic['title']} [{topic['status']}, priority={topic['priority']}]")
+
+
+@workspace.command('add-task')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--topic', 'topic_slug', required=True, help='Topic slug')
+@click.option('--task-id', required=True, help='Task identifier (e.g. literature_discovery)')
+@click.option('--title', required=True, help='Task title')
+@click.option('--status', default='queued', show_default=True, type=click.Choice(['queued', 'ready', 'running', 'blocked', 'done']))
+@click.option('--priority', default='medium', show_default=True, type=click.Choice(['low', 'medium', 'high', 'critical']))
+@click.option('--depends-on', multiple=True, help='Task IDs this task depends on')
+@click.option('--rationale', default='', help='Why this task was added')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_add_task(project_slug: str, topic_slug: str, task_id: str, title: str, status: str, priority: str, depends_on: tuple[str, ...], rationale: str, root: str):
+    """Add a task to a topic backlog."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        task = manager.add_backlog_task(
+            project_slug=project_slug,
+            topic_slug=topic_slug,
+            task_id=task_id,
+            title=title,
+            status=status,
+            priority=priority,
+            depends_on=[*depends_on],
+            rationale=rationale,
+        )
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(json.dumps(task, indent=2))
+
+
+@workspace.command('recommend-tasks')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--topic', 'topic_slug', required=True, help='Topic slug')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_recommend_tasks(project_slug: str, topic_slug: str, root: str):
+    """Suggest next tasks for a topic backlog."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        tasks = manager.recommend_next_tasks(project_slug=project_slug, topic_slug=topic_slug)
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not tasks:
+        click.echo('No recommendations.')
+        return
+
+    click.echo(json.dumps(tasks, indent=2))
+
+
 @cli.command()
 def config():
     """Show current configuration."""
