@@ -488,6 +488,118 @@ def workspace_create_topic(project_slug: str, title: str, owner: str, slug: str 
     click.echo(str(topic_dir))
 
 
+
+
+@workspace.command('init-kg')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--topic', 'topic_slug', required=True, help='Topic slug')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_init_kg(project_slug: str, topic_slug: str, root: str):
+    """Initialize a topic knowledge graph file."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        path = manager.initialize_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(str(path))
+
+
+@workspace.command('add-kg-node')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--topic', 'topic_slug', required=True, help='Topic slug')
+@click.option('--uid', required=True, help='Node UID')
+@click.option('--node-type', required=True, type=click.Choice(['Idea', 'Concept', 'Artifact', 'Claim', 'Agent', 'Dimension', 'Evidence']))
+@click.option('--title', required=True, help='Node title')
+@click.option('--description', default='', help='Node description')
+@click.option('--tag', 'tags', multiple=True, help='Node tag (repeatable)')
+@click.option('--source-ref', 'source_refs', multiple=True, help='Source reference (repeatable)')
+@click.option('--properties', default='{}', help='JSON properties object')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_add_kg_node(project_slug: str, topic_slug: str, uid: str, node_type: str, title: str, description: str, tags: tuple[str, ...], source_refs: tuple[str, ...], properties: str, root: str):
+    """Upsert a node in a topic knowledge graph."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        props = json.loads(properties)
+        if not isinstance(props, dict):
+            raise ValueError('properties must decode to a JSON object')
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise click.ClickException(f'Invalid --properties payload: {exc}') from exc
+
+    try:
+        node = manager.upsert_knowledge_node(
+            project_slug=project_slug,
+            topic_slug=topic_slug,
+            uid=uid,
+            node_type=node_type,
+            title=title,
+            description=description,
+            tags=[*tags],
+            source_references=[*source_refs],
+            properties=props,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(json.dumps(node, indent=2))
+
+
+@workspace.command('add-kg-dependency')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--topic', 'topic_slug', required=True, help='Topic slug')
+@click.option('--uid', required=True, help='Dependency edge UID')
+@click.option('--source-uid', required=True, help='Source node UID (depends on target)')
+@click.option('--target-uid', required=True, help='Target node UID')
+@click.option('--dependency-type', default='foundational', show_default=True, help='Dependency type')
+@click.option('--dimension', 'dimensions', multiple=True, help='Dependency dimension (repeatable)')
+@click.option('--confidence', default=1.0, show_default=True, type=float, help='Dependency confidence [0,1]')
+@click.option('--status', default='proposed', show_default=True, help='Dependency status')
+@click.option('--justification', default='', help='Natural language justification')
+@click.option('--evidence-uid', 'evidence_uids', multiple=True, help='Evidence UID (repeatable)')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_add_kg_dependency(project_slug: str, topic_slug: str, uid: str, source_uid: str, target_uid: str, dependency_type: str, dimensions: tuple[str, ...], confidence: float, status: str, justification: str, evidence_uids: tuple[str, ...], root: str):
+    """Add a dependency edge in a topic knowledge graph."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        edge = manager.add_knowledge_dependency(
+            project_slug=project_slug,
+            topic_slug=topic_slug,
+            uid=uid,
+            source_uid=source_uid,
+            target_uid=target_uid,
+            dependency_type=dependency_type,
+            dimensions=[*dimensions],
+            confidence=confidence,
+            status=status,
+            justification=justification,
+            evidence_uids=[*evidence_uids],
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(json.dumps(edge, indent=2))
+
+
+@workspace.command('show-kg')
+@click.option('--project', 'project_slug', required=True, help='Project slug')
+@click.option('--topic', 'topic_slug', required=True, help='Topic slug')
+@click.option('--root', default='research_workspace', show_default=True, help='Workspace root directory')
+def workspace_show_kg(project_slug: str, topic_slug: str, root: str):
+    """Print a topic knowledge graph JSON payload."""
+    from research_agent.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager(Path(root))
+    try:
+        graph = manager.get_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(json.dumps(graph, indent=2))
 @workspace.command('list-topics')
 @click.option('--project', 'project_slug', required=True, help='Project slug')
 @click.option('--status', default=None, help='Optional status filter')

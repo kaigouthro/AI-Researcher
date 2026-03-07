@@ -12,6 +12,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
+from research_agent.knowledge_graph import TopicKnowledgeGraph
+
 
 DEFAULT_WORKSPACE_ROOT = Path("research_workspace")
 DEFAULT_TAXONOMY = {
@@ -206,7 +208,78 @@ class WorkspaceManager:
         self._write_yaml(topic_dir / "topic.yaml", topic_meta.model_dump())
         self._write_yaml(topic_dir / "tasks" / "backlog.yaml", backlog.model_dump())
         self._write_json(topic_dir / "vectors" / "index_manifest.json", index_manifest)
+        self.initialize_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
         return topic_dir
+
+    def initialize_topic_knowledge_graph(self, project_slug: str, topic_slug: str) -> Path:
+        topic_dir = self._topic_dir(project_slug, topic_slug)
+        topic_meta = TopicMetadata.model_validate(self._read_yaml(topic_dir / "topic.yaml"))
+        path = topic_dir / "knowledge_graph.json"
+        if path.exists():
+            return path
+
+        now = utc_now()
+        graph = TopicKnowledgeGraph(topic_id=topic_meta.id, created_at=now, updated_at=now)
+        self._write_json(path, graph.model_dump())
+        return path
+
+    def upsert_knowledge_node(
+        self,
+        project_slug: str,
+        topic_slug: str,
+        uid: str,
+        node_type: str,
+        title: str,
+        description: str = "",
+        tags: list[str] | None = None,
+        source_references: list[str] | None = None,
+        properties: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        graph, path = self._load_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
+        node = graph.upsert_node(
+            uid=uid,
+            node_type=node_type,
+            title=title,
+            description=description,
+            tags=tags,
+            source_references=source_references,
+            properties=properties,
+        )
+        self._write_json(path, graph.model_dump())
+        return node.model_dump()
+
+    def add_knowledge_dependency(
+        self,
+        project_slug: str,
+        topic_slug: str,
+        uid: str,
+        source_uid: str,
+        target_uid: str,
+        dependency_type: str = "foundational",
+        dimensions: list[str] | None = None,
+        confidence: float = 1.0,
+        status: str = "proposed",
+        justification: str = "",
+        evidence_uids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        graph, path = self._load_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
+        edge = graph.add_dependency(
+            uid=uid,
+            source_uid=source_uid,
+            target_uid=target_uid,
+            dependency_type=dependency_type,
+            dimensions=dimensions,
+            confidence=confidence,
+            status=status,
+            justification=justification,
+            evidence_uids=evidence_uids,
+        )
+        self._write_json(path, graph.model_dump())
+        return edge.model_dump()
+
+    def get_topic_knowledge_graph(self, project_slug: str, topic_slug: str) -> dict[str, Any]:
+        graph, _ = self._load_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
+        return graph.model_dump()
 
     def list_topics(self, project_slug: str, status: str | None = None) -> list[dict[str, Any]]:
         project_topics = self.projects_dir / project_slug / "topics"
@@ -294,6 +367,13 @@ class WorkspaceManager:
         if not path.exists():
             raise FileNotFoundError(f"Topic not found: {project_slug}/{topic_slug}")
         return path
+
+    def _load_topic_knowledge_graph(self, project_slug: str, topic_slug: str) -> tuple[TopicKnowledgeGraph, Path]:
+        path = self.initialize_topic_knowledge_graph(project_slug=project_slug, topic_slug=topic_slug)
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        graph = TopicKnowledgeGraph.model_validate(payload)
+        return graph, path
 
     @staticmethod
     def _write_yaml(path: Path, payload: dict[str, Any]) -> None:

@@ -132,3 +132,135 @@ def test_cli_workspace_flow(tmp_path: Path):
     )
     assert result.exit_code == 0, result.output
     assert "next_task_recommendation" in result.output
+
+
+
+def test_workspace_knowledge_graph_flow(tmp_path: Path):
+    runner = CliRunner()
+    root = tmp_path / "workspace_kg"
+
+    result = runner.invoke(cli, ["workspace", "init", "--root", str(root)])
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "create-project",
+            "--name",
+            "KG Project",
+            "--owner",
+            "alex",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "create-topic",
+            "--project",
+            "kg-project",
+            "--title",
+            "Dependency Modeling",
+            "--owner",
+            "alex",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    kg_path = root / "projects" / "kg-project" / "topics" / "dependency-modeling" / "knowledge_graph.json"
+    assert kg_path.exists()
+
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "add-kg-node",
+            "--project",
+            "kg-project",
+            "--topic",
+            "dependency-modeling",
+            "--uid",
+            "idea_a",
+            "--node-type",
+            "Idea",
+            "--title",
+            "Idea A",
+            "--tag",
+            "methodological",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "add-kg-node",
+            "--project",
+            "kg-project",
+            "--topic",
+            "dependency-modeling",
+            "--uid",
+            "idea_b",
+            "--node-type",
+            "Idea",
+            "--title",
+            "Idea B",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "add-kg-dependency",
+            "--project",
+            "kg-project",
+            "--topic",
+            "dependency-modeling",
+            "--uid",
+            "dep_1",
+            "--source-uid",
+            "idea_a",
+            "--target-uid",
+            "idea_b",
+            "--dependency-type",
+            "extends",
+            "--dimension",
+            "methodological",
+            "--confidence",
+            "0.8",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(
+        cli,
+        [
+            "workspace",
+            "show-kg",
+            "--project",
+            "kg-project",
+            "--topic",
+            "dependency-modeling",
+            "--root",
+            str(root),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = yaml.safe_load(result.output)
+    assert "idea_a" in payload["nodes"]
+    assert payload["dependencies"]["dep_1"]["target_uid"] == "idea_b"
